@@ -22,6 +22,7 @@ exports.show = function(req, res) {
 
 // Creates a new dbutton in the DB.
 exports.create = function(req, res) {
+  if(req.body._id) { delete req.body._id; }
   Dbutton.create(req.body, function(err, dbutton) {
     if(err) { return handleError(res, err); }
     return res.json(201, dbutton);
@@ -31,29 +32,19 @@ exports.create = function(req, res) {
 // Updates an existing dbutton in the DB.
 exports.update = function(req, res) {
   if(req.body._id) { delete req.body._id; }
-  Dbutton.findById(req.params.id, function (err, dbutton) {
-    if (err) { return handleError(res, err); }
-    if(!dbutton) { return res.send(404); }
-    var updated = _.merge(dbutton, req.body);
-    updated.save(function (err) {
-      if (err) { return handleError(res, err); }
-      return res.json(200, dbutton);
-    });
-  });
-};
 
-// Deletes a dbutton from the DB.
-exports.destroy = function(req, res) {
   Dbutton.findById(req.params.id, function (err, dbutton) {
     if(err) { return handleError(res, err); }
     if(!dbutton) { return res.send(404); }
-    dbutton.remove(function(err) {
+
+    var updatedDButton = _.merge(dbutton, req.body);
+    updatedDButton.save(function (err) {
       if(err) { return handleError(res, err); }
-      return res.send(204);
+      return res.json(200, updatedDButton);
     });
   });
 };
 
 function handleError(res, err) {
-  return res.send(500, err);
+  return res.send(400, err);
 }
