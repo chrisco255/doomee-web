@@ -1,9 +1,10 @@
 'use strict';
 
-var expect = require('chai').expect;
+var chai = require('chai');
+chai.use(require('chai-datetime'));
+var expect = chai.expect;
 var app = require('../../app');
 var request = require('supertest');
-var DButton = require('./dbutton.model');
 var mongoose = require('mongoose');
 var _ = require('lodash');
 var fixtures = require('mongoose-fixtures');
@@ -17,12 +18,11 @@ function DButtonBuilder(id, userId, taskId) {
   };
 }
 
-function UserBuilder(id) {
+function DoneEventBuilder(id, taskId) {
   return {
     _id: id || ObjectId(),
-    email: 'user@user.com',
-    password: 'abc123'
-  };
+    taskId: taskId
+  }
 }
 
 function TaskBuilder(id, taskName) {
@@ -33,13 +33,14 @@ function TaskBuilder(id, taskName) {
   };
 }
 
-describe('DButton Endpoint', function() {
+describe('DoneEvent Endpoint', function() {
   before(function (done) {
     var dButton_1 = DButtonBuilder(ObjectId('4edd40c86762e0fb12000003'));
     var dButton_2 = DButtonBuilder(ObjectId('4edd40c86762e0fb12000004'));
 
     var task_1 = TaskBuilder(ObjectId('4edd40c86762e0fb12000005'));
-    var user_1 = UserBuilder(ObjectId('4edd40c86762e0fb12000006'));
+
+    var doneEvent_1 = DoneEventBuilder(ObjectId('4edd40c86762e0fb12000006'), ObjectId('4edd40c86762e0fb12000005'));
 
     var data = {
       DButton: [
@@ -49,18 +50,20 @@ describe('DButton Endpoint', function() {
       Task: [
         task_1
       ],
-      User: [
-        user_1
+      DoneEvent: [
+        doneEvent_1
       ]
     };
 
     fixtures.load(data, done);
   });
 
-  describe('GET /api/dbuttons', function() {
+
+  describe('GET /api/doneevents', function() {
     it('should respond with JSON array', function(done) {
       request(app)
-        .get('/api/dbuttons')
+        .get('/api/doneevents')
+        .expect(200)
         .expect('Content-Type', /json/)
         .end(function(err, res) {
           if (err) return done(err);
@@ -71,32 +74,32 @@ describe('DButton Endpoint', function() {
 
     it('should contain 2 items in response', function (done) {
       request(app)
-        .get('/api/dbuttons')
+        .get('/api/doneevents')
         .expect('Content-Type', /json/)
         .end(function (err, res) {
           if (err) return done(err);
           expect(res.status).to.equal(200);
-          expect(res.body).to.have.length(2);
+          expect(res.body).to.have.length(1);
           done();
         });
     });
   });
 
-  describe('GET /api/dbuttons/:id', function() {
-    it('when id is valid should respond with the correct dbutton', function(done) {
+  describe('GET /api/doneevents/:id', function() {
+    it('when id is valid should respond with the correct doneevent', function(done) {
       request(app)
-        .get('/api/dbuttons/4edd40c86762e0fb12000003')
+        .get('/api/doneevents/4edd40c86762e0fb12000006')
         .expect('Content-Type', /json/)
         .end(function(err, res) {
           if (err) return done(err);
-          expect(res.body._id).to.equal('4edd40c86762e0fb12000003');
+          expect(res.body._id).to.equal('4edd40c86762e0fb12000006');
           done();
         });
     });
 
     it('when id is not found should return 404', function (done) {
       request(app)
-        .get('/api/dbuttons/4edd40c86762e0fb12000001')
+        .get('/api/doneevents/4edd40c86762e0fb12000001')
         .end(function (err, res) {
           if (err) return done(err);
           expect(res.status).to.equal(404);
@@ -106,7 +109,7 @@ describe('DButton Endpoint', function() {
 
     it('when id is invalid should respond with error', function(done) {
       request(app)
-        .get('/api/dbuttons/asdfasdf')
+        .get('/api/doneevents/asdfasdf')
         .expect('Content-Type', /json/)
         .end(function(err, res) {
           if (err) return done(err);
@@ -116,57 +119,51 @@ describe('DButton Endpoint', function() {
     });
   });
 
-  describe('POST /api/dbuttons', function() {
-    it('when request is empty should create new dbutton', function(done) {
+  describe('POST /api/doneevents', function() {
+    it('when task id is valid should create new doneevent', function(done) {
+      var doneEvent = {
+        taskId: '4edd40c86762e0fb12000005'
+      };
+
       request(app)
-        .post('/api/dbuttons')
+        .post('/api/doneevents')
+        .send(doneEvent)
         .expect('Content-Type', /json/)
         .end(function(err, res) {
           if (err) return done(err);
+          expect(res.status).to.equal(201);
           expect(res.body._id).to.be.a('string');
           expect(res.body._id).to.not.be.empty;
+          expect(res.body.taskId).to.equal('4edd40c86762e0fb12000005');
+          expect(res.body.taskName).to.equal('Task Name');
           done();
         });
     });
 
     it('when request has defined an id, should ignore it', function(done) {
-      var dButton = { _id: '4edd40c86762e0fb12000002' };
+      var doneEvent = { _id: '4edd40c86762e0fb12000002', taskId: '4edd40c86762e0fb12000005' };
 
       request(app)
-        .post('/api/dbuttons')
-        .send(dButton)
+        .post('/api/doneevents')
+        .send(doneEvent)
         .expect('Content-Type', /json/)
         .end(function(err, res) {
           if (err) return done(err);
+          expect(res.status).to.equal(201);
           expect(res.body._id).to.be.a('string');
           expect(res.body._id).to.not.be.equal('4edd40c86762e0fb12000002');
           done();
         });
     });
 
-    it('when user id is not found, should reject request', function(done) {
-      var dButton = {
-        userId: '4edd40c86762e0fb12000002'
-      };
-
-      request(app)
-        .post('/api/dbuttons')
-        .send(dButton)
-        .end(function(err, res) {
-          if (err) return done(err);
-          expect(res.status).to.equal(400);
-          done();
-        });
-    });
-
     it('when task id is not found, should reject request', function(done) {
-      var dButton = {
+      var doneEvent = {
         taskId: '4edd40c86762e0fb12000002'
       };
 
       request(app)
-        .post('/api/dbuttons')
-        .send(dButton)
+        .post('/api/doneevents')
+        .send(doneEvent)
         .end(function(err, res) {
           if (err) return done(err);
           expect(res.status).to.equal(400);
@@ -174,83 +171,61 @@ describe('DButton Endpoint', function() {
         });
     });
 
-    it('when task and user id are valid, saves to new dbutton', function(done) {
-      var dButton = {
+    it('when dbutton id is not found, should reject request', function(done) {
+      var doneEvent = {
         taskId: '4edd40c86762e0fb12000005',
-        userId: '4edd40c86762e0fb12000006'
+        dButtonId: '4edd40c86762e0fb12000001'
       };
 
       request(app)
-        .post('/api/dbuttons')
-        .send(dButton)
+        .post('/api/doneevents')
+        .send(doneEvent)
+        .end(function(err, res) {
+          if (err) return done(err);
+          expect(res.status).to.equal(400);
+          done();
+        });
+    });
+
+    it('when dbutton id and task id valid, saves data to doneevent', function(done) {
+      var doneEvent = {
+        taskId: '4edd40c86762e0fb12000005',
+        dButtonId: '4edd40c86762e0fb12000003'
+      };
+
+      request(app)
+        .post('/api/doneevents')
+        .send(doneEvent)
         .end(function(err, res) {
           if (err) return done(err);
           expect(res.status).to.equal(201);
           expect(res.body.taskId).to.equal('4edd40c86762e0fb12000005');
-          expect(res.body.userId).to.equal('4edd40c86762e0fb12000006');
-          done();
-        });
-    });
-  });
-
-  describe('PUT /api/dbuttons/:id', function() {
-    it('when dbutton id is not found, should return not found', function(done) {
-      var dButton = {};
-
-      request(app)
-        .put('/api/dbuttons/4edd40c86762e0fb12000000')
-        .send(dButton)
-        .end(function(err, res) {
-          if (err) return done(err);
-          expect(res.status).to.equal(404);
+          expect(res.body.dButtonId).to.equal('4edd40c86762e0fb12000003');
           done();
         });
     });
 
-    it('when dbutton id is invalid, should return bad request', function(done) {
-      var dButton = {};
+    it('when valid request, sets time', function(done) {
+      var oldTime = new Date();
 
-      request(app)
-        .put('/api/dbuttons/asdfa')
-        .send(dButton)
-        .end(function(err, res) {
-          if (err) return done(err);
-          expect(res.status).to.equal(400);
-          done();
-        });
-    });
-
-    it('when task id is not found, should return bad request', function(done) {
-      var dButton = {
-        taskId: '4edd40c86762e0fb12000006'
-      };
-
-      request(app)
-        .put('/api/dbuttons/4edd40c86762e0fb12000003')
-        .send(dButton)
-        .end(function(err, res) {
-          if (err) return done(err);
-          expect(res.status).to.equal(400);
-          done();
-        });
-    });
-
-    it('when new data is valid, should properly save', function(done) {
-      var dButton = {
+      var doneEvent = {
         taskId: '4edd40c86762e0fb12000005',
-        userId: '4edd40c86762e0fb12000006'
+        dButtonId: '4edd40c86762e0fb12000003'
       };
 
       request(app)
-        .put('/api/dbuttons/4edd40c86762e0fb12000003')
-        .send(dButton)
+        .post('/api/doneevents')
+        .send(doneEvent)
         .end(function(err, res) {
           if (err) return done(err);
-          expect(res.status).to.equal(200);
-          expect(res.body.taskId).to.equal('4edd40c86762e0fb12000005');
+          expect(res.status).to.equal(201);
+          var time = new Date(res.body.time);
+          expect(time).to.be.afterTime(oldTime);
           done();
         });
     });
   });
 });
+
+
 

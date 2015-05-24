@@ -22,6 +22,7 @@ exports.show = function(req, res) {
 
 // Creates a new task in the DB.
 exports.create = function(req, res) {
+  if(req.body._id) { delete req.body._id; }
   Task.create(req.body, function(err, task) {
     if(err) { return handleError(res, err); }
     return res.status(201).json(task);
@@ -55,5 +56,5 @@ exports.destroy = function(req, res) {
 };
 
 function handleError(res, err) {
-  return res.send(500, err);
+  return res.send(400, err);
 }

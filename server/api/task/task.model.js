@@ -12,8 +12,16 @@ var FrequencySchema = new Schema({
 });
 
 var TaskSchema = new Schema({
-  name: String,
+  name: { type: String, required: true },
   frequencies: { type: [ FrequencySchema ], required: true }
+});
+
+TaskSchema.path('name').validate(function (value, respond) {
+  if(value && value.trim()) {
+    respond(true);
+  } else {
+    respond(false);
+  }
 });
 
 module.exports = mongoose.model('Task', TaskSchema);
